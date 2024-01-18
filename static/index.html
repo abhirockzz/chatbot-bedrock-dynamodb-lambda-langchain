@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>ChatAI</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        #container {
+            justify-content: center
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        p {
+            margin-bottom: 10px;
+        }
+
+        input {
+            width: 100%;
+            height: 20px;
+            border: 1px solid black;
+            margin-bottom: 10px;
+        }
+
+        button {
+            height: 40px;
+            background-color: #000;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        #chat-output {
+            width: 100%;
+            overflow: auto;
+            height: 300px;
+            /* set a fixed height for the chat output */
+            border: 1px solid #ccc;
+            /* add a border for better appearance */
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container" class="row">
+        <div class="column column-67">
+            <h1>Serverless AI Chat</h1>
+            <h3>Powered by: Amazon Bedrock, AWS Lambda, DynamoDB, Go</h3>
+            <div id="chat-output"></div>
+            <input type="text" id="message" placeholder="Enter your message">
+            <button id="send-message">Send</button>
+        </div>
+    </div>
+    <script>
+        const chatOutput = document.getElementById("chat-output");
+
+        async function chat() {
+            const messageInput = document.getElementById("message");
+            const message = messageInput.value;
+
+            if (message.trim().length === 0) {
+                return;
+            }
+
+            // Display user message in the chat output
+            displayMessage("\nYou: " + message);
+
+            try {
+                // Use Fetch API to send a POST request for response streaming. See https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API 
+                const response = await fetch("/stream", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "text/plain"
+                    },
+                    body: message
+                });
+
+                // Response Body is a ReadableStream. See https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                displayMessage("Bot: ");
+
+                // Process the chunks from the stream
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    const text = decoder.decode(value);
+
+                    // Display the response in the chat output
+                    displayMessage(text);
+                }
+
+            } catch (error) {
+                // Display error message in the chat output
+                displayMessage("Error occurred. Please try again later. \n\n" + error, true);
+            }
+
+            // Clear the input field after sending the message
+            messageInput.value = "";
+        }
+
+        let botMessageElement; // Declare a variable to hold the Bot's message div
+
+        function displayMessage(message, isError = false) {
+            const messageElement = document.createElement("div");
+            messageElement.textContent = message;
+
+            if (isError) {
+                messageElement.style.color = "red";
+            }
+
+            if (message.startsWith("Bot:")) {
+                if (!botMessageElement) {
+                    botMessageElement = document.createElement("div");
+                    chatOutput.appendChild(botMessageElement);
+                }
+
+                // Clear previous content and display the current chunk
+                botMessageElement.innerHTML = message;
+            } else {
+                //chatOutput.append(messageElement);
+                chatOutput.innerText += message;
+                botMessageElement = null; // Reset the botMessageElement when it's not a Bot message
+            }
+
+            chatOutput.scrollTop = chatOutput.scrollHeight; // Auto-scroll to the bottom
+        }
+
+        document.getElementById("send-message").addEventListener("click", chat);
+        document.getElementById('message').addEventListener('keydown', function (e) {
+            if (e.code === 'Enter') {
+                chat();
+            }
+        });
+    </script>
+</body>
+
+</html>

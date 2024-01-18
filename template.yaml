@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless-AI-Chat with Langchain
+
+  LangChain chatbot on AWS Lambda with DynamoDB chat history
+
+Globals:
+  Function:
+    Timeout: 60
+
+Resources:
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: bootstrap
+      Runtime: provided.al2023
+      MemorySize: 512
+      Environment:
+        Variables:
+          PORT: 8000
+          GIN_MODE: release
+          AWS_LWA_INVOKE_MODE: RESPONSE_STREAM
+          DYNAMODB_TABLE_NAME: !Ref ChatHistoryTable
+          DYNAMODB_PRIMARY_KEY_NAME: chat_id
+
+      Policies:
+      - Statement:
+        - Sid: AppPolicy
+          Effect: Allow
+          Action:
+            - bedrock:*
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+          Resource: '*'
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:17
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: langchain_chat_history
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: chat_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: chat_id
+          KeyType: HASH
+
+Outputs:
+  ChatFunctionUrl:
+    Description: "Function URL for ChatFunction"
+    Value: !GetAtt ChatFunctionUrl.FunctionUrl
+  ChatFunction:
+    Description: "ChatFunction Lambda Function ARN"
+    Value: !GetAtt ChatFunction.Arn
